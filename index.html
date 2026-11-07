@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Christmas Tunes</title>
+<meta name="description" content="Offline music viewer and tempo light for New Christmas Praise, Solo and 1st Cornet B flat.">
+<meta name="theme-color" content="#173528">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Xmas Tunes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="styles.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="note-head-filled" viewBox="0 0 24 40"><ellipse cx="9" cy="32" rx="7.2" ry="5.2" transform="rotate(-22 9 32)" fill="currentColor"/><rect x="14.6" y="2" width="2.2" height="29" fill="currentColor"/></symbol>
+    <symbol id="note-head-open" viewBox="0 0 24 40"><ellipse cx="9" cy="32" rx="6.4" ry="4.4" transform="rotate(-22 9 32)" fill="none" stroke="currentColor" stroke-width="2.4"/><rect x="14.6" y="2" width="2.2" height="29" fill="currentColor"/></symbol>
+    <symbol id="note-flag" viewBox="0 0 24 40"><path d="M16.6 2c1 5 7 7 6.5 14-.2 2.6-1.3 4.6-2.4 6 .6-1.6 1.1-3.6.8-5.4-.6-4.2-4-5.7-4.9-6.6z" fill="currentColor"/></symbol>
+    <symbol id="note-dot" viewBox="0 0 24 40"><circle cx="21" cy="31" r="2.6" fill="currentColor"/></symbol>
+  </defs>
+</svg>
+
+<a class="skip" href="#score">Skip to music</a>
+
+<div id="setup" class="setup" hidden>
+  <main class="setup-card" aria-labelledby="setup-h">
+    <svg class="setup-icon" viewBox="0 0 24 40" aria-hidden="true" focusable="false"><use href="#note-head-filled"/><use href="#note-flag"/></svg>
+    <h1 id="setup-h">Christmas Tunes</h1>
+    <p>This app shows each tune from <cite>New Christmas Praise</cite> (Solo &amp; 1st Cornet B♭) on its own, with its tempo and a tempo light.</p>
+    <p>The book isn’t included in the app. Choose your PDF copy once on each device. The app cuts out every tune and keeps them only on this device, so it then works without the internet.</p>
+    <div class="setup-actions">
+      <button id="choose-btn" class="btn btn-gold" type="button" aria-describedby="setup-status">Choose your PDF</button>
+      <input id="pdf-input" type="file" accept="application/pdf,.pdf" hidden>
+    </div>
+    <div id="progress-wrap" class="progress-wrap" hidden>
+      <label for="progress" id="progress-label">Preparing tunes</label>
+      <progress id="progress" max="115" value="0"></progress>
+    </div>
+    <p id="setup-status" class="setup-status" role="status" aria-live="polite"></p>
+    <details class="tip">
+      <summary>Using it on a phone or tablet</summary>
+      <p>Add the app to your home screen so it opens full screen and your stored music is kept. On iPhone or iPad, tap Share, then <strong>Add to Home Screen</strong>. On Android, open the browser menu, then <strong>Install app</strong> or <strong>Add to Home screen</strong>.</p>
+    </details>
+  </main>
+</div>
+
+<div id="app" class="app" hidden>
+  <nav id="strip" class="strip" aria-label="Tune search and tempo">
+    <div class="strip-top">
+      <p class="book">New Christmas Praise</p>
+      <label for="q" class="search-label">Search by number or title</label>
+      <div class="search-wrap">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="q" class="search" type="search" placeholder="e.g. 78 or nowell" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go" aria-describedby="count">
+      </div>
+      <p id="count" class="count" aria-live="polite"></p>
+    </div>
+    <ul id="results" class="results" aria-label="Tunes"></ul>
+
+    <section class="tempo" aria-labelledby="tempo-h">
+      <h2 id="tempo-h" class="tempo-h">Tempo</h2>
+      <p id="t-word" class="t-word"></p>
+      <p class="t-bpm"><span id="t-note" class="t-note" aria-hidden="true"></span><span id="t-num" aria-hidden="true"></span><span id="t-spoken" class="visually-hidden"></span></p>
+      <p id="t-meta" class="t-meta"></p>
+      <p id="t-extra" class="t-extra" hidden></p>
+      <div id="dots" class="dots" aria-hidden="true"></div>
+      <button id="light-btn" class="btn btn-gold light-btn" type="button" aria-pressed="false">
+        <svg class="i-play" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 5l12 7-12 7z" fill="currentColor"/></svg>
+        <svg class="i-stop" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>
+        <span id="light-text">Start tempo light</span>
+      </button>
+    </section>
+  </nav>
+
+  <main class="stage" id="stage">
+    <header class="stage-head">
+      <button id="strip-btn" class="tool" type="button" aria-controls="strip" aria-expanded="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 4v16" stroke="currentColor" stroke-width="2"/></svg>
+        <span class="visually-hidden" id="strip-btn-text">Hide search panel</span>
+      </button>
+      <div class="title-wrap">
+        <h1 id="title" class="title"></h1>
+        <p id="subtitle" class="subtitle"></p>
+      </div>
+      <div id="mini" class="mini" hidden>
+        <span id="mini-note" class="mini-note" aria-hidden="true"></span><span id="mini-text" class="mini-text"></span>
+        <span id="mini-dot" class="mini-dot" aria-hidden="true"></span>
+        <button id="mini-light" class="tool" type="button" aria-pressed="false">
+          <svg class="i-play" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 5l12 7-12 7z" fill="currentColor"/></svg>
+          <svg class="i-stop" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="6" y="5" width="4" height="14" fill="currentColor"/><rect x="14" y="5" width="4" height="14" fill="currentColor"/></svg>
+          <span class="visually-hidden">Tempo light</span>
+        </button>
+      </div>
+      <button id="fit-btn" class="tool" type="button" aria-pressed="false">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 9V4h5M21 9V4h-5M3 15v5h5M21 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="visually-hidden">Fit music to width</span>
+      </button>
+      <button id="prev" class="tool" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="visually-hidden">Previous tune</span>
+      </button>
+      <button id="next" class="tool" type="button">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span class="visually-hidden">Next tune</span>
+      </button>
+    </header>
+
+    <div id="score" class="score" tabindex="-1">
+      <img id="score-img" class="score-img" alt="">
+    </div>
+
+    <footer class="stage-foot">
+      <span>Arrow keys or a page-turner pedal change tune</span>
+      <button id="settings-btn" class="link-btn" type="button">Stored music</button>
+    </footer>
+  </main>
+</div>
+
+<p id="announce" class="visually-hidden" aria-live="polite"></p>
+
+<dialog id="settings" class="dialog" aria-labelledby="settings-h">
+  <h2 id="settings-h">Stored music</h2>
+  <p id="settings-info"></p>
+  <p>The music is kept only on this device. Nothing from your PDF is uploaded.</p>
+  <div class="dialog-actions">
+    <button id="reimport-btn" class="btn btn-outline" type="button">Import PDF again</button>
+    <input id="pdf-reimport" type="file" accept="application/pdf,.pdf" hidden>
+    <button id="clear-btn" class="btn btn-outline" type="button">Remove stored music</button>
+    <button id="close-settings" class="btn btn-dark" type="button">Close</button>
+  </div>
+  <p id="settings-status" role="status" aria-live="polite"></p>
+</dialog>
+</body>
+</html>
