@@ -70,7 +70,10 @@ p { margin: 0; }
 .setup-icon { width: 36px; height: 60px; color: var(--gold); }
 .setup h1 { margin: 0; font-size: 32px; line-height: 1.15; }
 .setup p { color: var(--on-strip); }
-.setup-actions { padding-top: 6px; }
+.setup-actions { padding-top: 6px; display: flex; flex-wrap: wrap; gap: 10px; }
+.btn-outline-light { background: transparent; color: var(--on-strip); border-color: var(--field-border); }
+.btn-outline-light:hover { background: var(--strip-hi); }
+.foot-actions { display: flex; gap: 12px; }
 .progress-wrap { display: flex; flex-direction: column; gap: 6px; }
 .progress-wrap progress { width: 100%; height: 14px; accent-color: var(--gold); }
 .setup-status { min-height: 1.4em; font-weight: 700; }
@@ -189,7 +192,7 @@ p { margin: 0; }
   .t-bpm { font-size: 24px; }
   .light-btn { width: auto; margin-left: auto; }
   .title { font-size: 19px; }
-  .stage-foot span { display: none; }
+  .stage-foot > span:first-child { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

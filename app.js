@@ -1,7 +1,6 @@
 import { TUNES, PAGES } from './tunes.js';
 
 const MEDIA_W = 595.2, MEDIA_H = 419.52;   // music pages' MediaBox, in points
-const RENDER_SCALE = 4;                    // about 290 dpi
 const DB_NAME = 'christmas-tunes', DB_VER = 1;
 const LS_KEY = 'ct.state';
 const UNIT = {
@@ -57,13 +56,95 @@ function loadState() { try { return JSON.parse(localStorage.getItem(LS_KEY)) || 
 function saveState(patch) { try { localStorage.setItem(LS_KEY, JSON.stringify({ ...loadState(), ...patch })); } catch { /* storage unavailable */ } }
 
 /* ---------- import ---------- */
-function canvasToBlob(c) { return new Promise((res) => c.toBlob(res, 'image/png')); }
+// Each music page in the book is one 600 dpi, 1-bit scan (4960 × 3496 px). That is larger than
+// many phone graphics chips can draw, so instead of rendering pages we read the scan's pixels
+// directly and build each tune with plain JavaScript. Output stays under 3,000 px wide.
+const OUT_SCALE = 5;          // output pixels per point (360 dpi), about 2,560 px for a full-width line
+const MAX_OUT_W = 3000;
+const SUB = 2;                // 2 × 2 samples per output pixel for smooth edges
+function canvasToBlob(c) { return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('Could not save image'))), 'image/png')); }
+const nextFrame = () => new Promise((r) => setTimeout(r, 0));
+
+async function pageScan(pdfjs, page) {
+  const ol = await page.getOperatorList();
+  const O = pdfjs.OPS;
+  let ctm = [1, 0, 0, 1, 0, 0]; const stack = [];
+  const mul = (m, n) => [m[0]*n[0]+m[2]*n[1], m[1]*n[0]+m[3]*n[1], m[0]*n[2]+m[2]*n[3], m[1]*n[2]+m[3]*n[3], m[0]*n[4]+m[2]*n[5]+m[4], m[1]*n[4]+m[3]*n[5]+m[5]];
+  for (let i = 0; i < ol.fnArray.length; i++) {
+    const f = ol.fnArray[i], args = ol.argsArray[i];
+    if (f === O.save) stack.push(ctm);
+    else if (f === O.restore) ctm = stack.pop() || [1, 0, 0, 1, 0, 0];
+    else if (f === O.transform) ctm = mul(ctm, args);
+    else if (f === O.paintImageXObject) {
+      const img = await new Promise((r) => page.objs.get(args[0], r));
+      if (!img || img.kind !== 1 || !img.data || ctm[1] || ctm[2]) return null;  // not a plain 1-bit scan
+      return { img, ctm };
+    }
+  }
+  return null;
+}
+
+function buildTune(scan, pieces, angleDeg) {
+  const { img, ctm } = scan;
+  const W = img.width, H = img.height, data = img.data, stride = Math.ceil(W / 8);
+  // MediaBox top-left points -> scan pixels
+  const kx = W / ctm[0], ky = H / ctm[3];
+  const bx = -ctm[4] * kx, by = H - (MEDIA_H - ctm[5]) * ky;    // y measured down from the MediaBox top
+  const maxW = Math.max(...pieces.map((p) => p[2] - p[0]));
+  const s = Math.min(OUT_SCALE, MAX_OUT_W / maxW);
+  const w = Math.ceil(maxW * s);
+  const heights = pieces.map((p) => Math.ceil((p[3] - p[1]) * s));
+  const h = heights.reduce((a, b) => a + b, 0);
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  const out = ctx.createImageData(w, h);
+  const px = out.data;
+  px.fill(255);
+  const a = angleDeg * Math.PI / 180, cos = Math.cos(a), sin = Math.sin(a);
+  const cx = MEDIA_W / 2, cy = MEDIA_H / 2;
+  const n = SUB * SUB, step = 1 / (s * SUB);
+  let ink = 0, yOff = 0;
+  pieces.forEach(([x0, y0, x1, y1, masks], k) => {
+    const pw = Math.ceil((x1 - x0) * s), ph = heights[k];
+    for (let oy = 0; oy < ph; oy++) {
+      for (let ox = 0; ox < pw; ox++) {
+        let white = 0;
+        for (let sy = 0; sy < SUB; sy++) {
+          const Y = y0 + (oy + (sy + 0.5) / SUB) / s - cy;
+          for (let sx = 0; sx < SUB; sx++) {
+            const X = x0 + (ox + (sx + 0.5) / SUB) / s - cx;
+            // undo the deskew: rotate back by -angle around the page centre
+            const qx = cx + X * cos - Y * sin, qy = cy + X * sin + Y * cos;
+            const ix = (qx * kx + bx) | 0, iy = (qy * ky + by) | 0;
+            if (ix < 0 || iy < 0 || ix >= W || iy >= H) { white++; continue; }
+            white += (data[iy * stride + (ix >> 3)] >> (7 - (ix & 7))) & 1;
+          }
+        }
+        if (white < n) {
+          const v = Math.round(255 * white / n);
+          const o = ((yOff + oy) * w + ox) * 4;
+          px[o] = px[o + 1] = px[o + 2] = v;
+          if (v < 128) ink++;
+        }
+      }
+    }
+    if (masks) for (const [mx0, my0, mx1, my1] of masks) {
+      const ax = Math.max(0, Math.floor((mx0 - x0) * s)), bx2 = Math.min(pw, Math.ceil((mx1 - x0) * s));
+      const ay = Math.max(0, Math.floor((my0 - y0) * s)), by2 = Math.min(ph, Math.ceil((my1 - y0) * s));
+      for (let yy = ay; yy < by2; yy++) px.fill(255, ((yOff + yy) * w + ax) * 4, ((yOff + yy) * w + bx2) * 4);
+    }
+    yOff += ph;
+  });
+  ctx.putImageData(out, 0, 0);
+  return { canvas, w, h, ink };
+}
 
 async function importPdf(file, report) {
   const pdfjs = await import('./vendor/pdfjs/pdf.min.mjs');
   pdfjs.GlobalWorkerOptions.workerSrc = new URL('./vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
   const data = new Uint8Array(await file.arrayBuffer());
-  const doc = await pdfjs.getDocument({ data, isEvalSupported: false }).promise;
+  const doc = await pdfjs.getDocument({ data, isEvalSupported: false, isOffscreenCanvasSupported: false, isImageDecoderSupported: false }).promise;
   if (doc.numPages !== 38) throw new Error(`This PDF has ${doc.numPages} pages. The New Christmas Praise Solo & 1st Cornet book has 38, so this doesn't look like the right file.`);
 
   const byPage = new Map();
@@ -73,55 +154,21 @@ async function importPdf(file, report) {
   await idb('scores', 'readwrite', (s) => s.clear());
   for (const [pno, tunes] of byPage) {
     const page = await doc.getPage(pno);
-    const [vx0, vy0, vx1, vy1] = page.view;
-    const viewport = page.getViewport({ scale: RENDER_SCALE });
-    const pc = document.createElement('canvas');
-    pc.width = Math.round(viewport.width); pc.height = Math.round(viewport.height);
-    const pctx = pc.getContext('2d');
-    pctx.fillStyle = '#fff'; pctx.fillRect(0, 0, pc.width, pc.height);
-    await page.render({ canvasContext: pctx, viewport }).promise;
-
-    const angle = (PAGES[pno] || 0) * Math.PI / 180;
-    const ox = vx0, oy = MEDIA_H - vy1;           // where the rendered crop box sits, in MediaBox top-left points
-    const cx = MEDIA_W / 2, cy = MEDIA_H / 2;
-
+    const scan = await pageScan(pdfjs, page);
+    if (!scan) throw new Error(`Page ${pno} of this PDF isn't laid out like the New Christmas Praise scan, so the tunes can't be cut out.`);
     for (const t of tunes) {
-      const pieces = t.pc;
-      const w = Math.ceil(Math.max(...pieces.map((p) => p[2] - p[0])) * RENDER_SCALE);
-      const h = Math.ceil(pieces.reduce((a, p) => a + (p[3] - p[1]), 0) * RENDER_SCALE);
-      const out = document.createElement('canvas');
-      out.width = w; out.height = h;
-      const ctx = out.getContext('2d');
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
-      let yOff = 0;
-      for (const [x0, y0, x1, y1, masks] of pieces) {
-        const pw = (x1 - x0) * RENDER_SCALE, ph = (y1 - y0) * RENDER_SCALE;
-        ctx.save();
-        ctx.beginPath(); ctx.rect(0, yOff, pw, ph); ctx.clip();
-        ctx.setTransform(RENDER_SCALE, 0, 0, RENDER_SCALE, 0, yOff);
-        ctx.translate(-x0, -y0);
-        ctx.translate(cx, cy); ctx.rotate(-angle); ctx.translate(-cx, -cy);
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(pc, ox, oy, pc.width / RENDER_SCALE, pc.height / RENDER_SCALE);
-        ctx.restore();
-        if (masks) {
-          ctx.fillStyle = '#fff';
-          for (const [mx0, my0, mx1, my1] of masks) {
-            ctx.fillRect((mx0 - x0) * RENDER_SCALE, yOff + (my0 - y0) * RENDER_SCALE, (mx1 - mx0) * RENDER_SCALE, (my1 - my0) * RENDER_SCALE);
-          }
-        }
-        yOff += ph;
-      }
-      const blob = await canvasToBlob(out);
+      await nextFrame();
+      const { canvas, w, h, ink } = buildTune(scan, t.pc, PAGES[pno] || 0);
+      if (ink < 2000) throw new Error(`Tune ${t.n} came out blank on this device, so the import was stopped and nothing was saved.`);
+      const blob = await canvasToBlob(canvas);
+      canvas.width = canvas.height = 0;
       await idb('scores', 'readwrite', (s) => s.put({ blob, w, h }, t.n));
-      out.width = out.height = 0;
       done++; report(done);
     }
-    pc.width = pc.height = 0;
     page.cleanup();
   }
   await doc.destroy();
-  await idb('meta', 'readwrite', (s) => s.put({ at: Date.now(), count: done, name: file.name }, 'import'));
+  await idb('meta', 'readwrite', (s) => s.put({ at: Date.now(), count: done, name: file.name, v: 2 }, 'import'));
   try { await navigator.storage?.persist?.(); } catch { /* not supported */ }
 }
 
@@ -143,7 +190,7 @@ async function runImport(file, statusEl, showProgress) {
   } catch (err) {
     console.error(err);
     statusEl.classList.add('error');
-    statusEl.textContent = err && err.message && /PDF has/.test(err.message) ? err.message : 'Sorry, that file couldn’t be read. Check it’s the New Christmas Praise PDF and try again.';
+    statusEl.textContent = err && err.message && /PDF has|came out blank|laid out like/.test(err.message) ? err.message : 'Sorry, that file couldn’t be read. Check it’s the New Christmas Praise PDF and try again.';
     return false;
   } finally {
     if (showProgress) el.progWrap.hidden = true;
@@ -398,9 +445,30 @@ el.clear.addEventListener('click', async () => {
 });
 el.settings.addEventListener('close', () => { if (!el.app.hidden) el.settingsBtn.focus(); });
 
+/* install prompt (Chrome, Edge, Samsung Internet) */
+let installEvt = null;
+const installBtns = () => document.querySelectorAll('.install-btn');
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; installBtns().forEach((b) => { b.hidden = false; }); });
+window.addEventListener('appinstalled', () => { installEvt = null; installBtns().forEach((b) => { b.hidden = true; }); });
+document.addEventListener('click', async (e) => {
+  if (!e.target.closest('.install-btn') || !installEvt) return;
+  installEvt.prompt();
+  await installEvt.userChoice.catch(() => null);
+  installEvt = null; installBtns().forEach((b) => { b.hidden = true; });
+});
+
 async function boot() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    const hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register('./sw.js').then((r) => r.update()).catch(() => {});
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
+  }
   const meta = await getMeta();
-  if (meta && meta.count === TUNES.length) await enterApp(); else enterSetup();
+  if (meta && meta.count === TUNES.length && meta.v === 2) await enterApp();
+  else {
+    if (meta) el.setupStatus.textContent = 'The app has been updated. Please choose your PDF again to rebuild the music.';
+    enterSetup();
+  }
 }
 boot();

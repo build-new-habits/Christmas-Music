@@ -36,6 +36,7 @@
     <p>The book isn’t included in the app. Choose your PDF copy once on each device. The app cuts out every tune and keeps them only on this device, so it then works without the internet.</p>
     <div class="setup-actions">
       <button id="choose-btn" class="btn btn-gold" type="button" aria-describedby="setup-status">Choose your PDF</button>
+      <button class="btn btn-outline-light install-btn" type="button" hidden>Install app</button>
       <input id="pdf-input" type="file" accept="application/pdf,.pdf" hidden>
     </div>
     <div id="progress-wrap" class="progress-wrap" hidden>
@@ -45,7 +46,7 @@
     <p id="setup-status" class="setup-status" role="status" aria-live="polite"></p>
     <details class="tip">
       <summary>Using it on a phone or tablet</summary>
-      <p>Add the app to your home screen so it opens full screen and your stored music is kept. On iPhone or iPad, tap Share, then <strong>Add to Home Screen</strong>. On Android, open the browser menu, then <strong>Install app</strong> or <strong>Add to Home screen</strong>.</p>
+      <p>Add the app to your home screen so it opens full screen and your stored music is kept. On iPhone or iPad, tap Share, then <strong>Add to Home Screen</strong>. On Android, use the <strong>Install app</strong> button when it appears, or open the browser menu (⋮) and tap <strong>Add to Home screen</strong>, then <strong>Install</strong>.</p>
     </details>
   </main>
 </div>
@@ -117,7 +118,7 @@
 
     <footer class="stage-foot">
       <span>Arrow keys or a page-turner pedal change tune</span>
-      <button id="settings-btn" class="link-btn" type="button">Stored music</button>
+      <span class="foot-actions"><button class="link-btn install-btn" type="button" hidden>Install app</button><button id="settings-btn" class="link-btn" type="button">Stored music</button></span>
     </footer>
   </main>
 </div>

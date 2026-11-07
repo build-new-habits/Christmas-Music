@@ -1,5 +1,5 @@
 // Offline cache for the app shell. The music itself lives in IndexedDB on the device.
-const CACHE = 'christmas-tunes-v1';
+const CACHE = 'christmas-tunes-v2';
 const SHELL = [
   './', './index.html', './styles.css', './app.js', './tunes.js', './manifest.webmanifest',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
