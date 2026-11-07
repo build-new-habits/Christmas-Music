@@ -33,17 +33,30 @@
     <svg class="setup-icon" viewBox="0 0 24 40" aria-hidden="true" focusable="false"><use href="#note-head-filled"/><use href="#note-flag"/></svg>
     <h1 id="setup-h">Christmas Tunes</h1>
     <p>This app shows each tune from <cite>New Christmas Praise</cite> (Solo &amp; 1st Cornet B♭) on its own, with its tempo and a tempo light.</p>
-    <p>The book isn’t included in the app. Choose your PDF copy once on each device. The app cuts out every tune and keeps them only on this device, so it then works without the internet.</p>
-    <div class="setup-actions">
-      <button id="choose-btn" class="btn btn-gold" type="button" aria-describedby="setup-status">Choose your PDF</button>
-      <button class="btn btn-outline-light install-btn" type="button" hidden>Install app</button>
-      <input id="pdf-input" type="file" accept="application/pdf,.pdf" hidden>
-    </div>
+    <p>The music is locked. Enter the password once on each device. The tunes are then kept only on this device, so the app works without the internet.</p>
+    <form id="unlock-form" class="unlock" novalidate>
+      <input type="text" name="username" value="christmas-tunes" autocomplete="username" hidden>
+      <label for="pw">Password</label>
+      <div class="pw-row">
+        <input id="pw" class="search pw" type="password" autocomplete="current-password" autocapitalize="off" spellcheck="false" required aria-describedby="setup-status">
+        <button id="pw-toggle" class="btn btn-outline-light pw-toggle" type="button" aria-pressed="false" aria-controls="pw">Show</button>
+      </div>
+      <div class="setup-actions">
+        <button id="unlock-btn" class="btn btn-gold" type="submit">Unlock music</button>
+        <button class="btn btn-outline-light install-btn" type="button" hidden>Install app</button>
+      </div>
+    </form>
     <div id="progress-wrap" class="progress-wrap" hidden>
       <label for="progress" id="progress-label">Preparing tunes</label>
       <progress id="progress" max="115" value="0"></progress>
     </div>
     <p id="setup-status" class="setup-status" role="status" aria-live="polite"></p>
+    <details class="tip">
+      <summary>Use your own PDF instead</summary>
+      <p>If you have the New Christmas Praise PDF on this device, the app can cut the tunes from it instead.</p>
+      <p class="tip-action"><button id="choose-btn" class="btn btn-outline-light" type="button" aria-describedby="setup-status">Choose your PDF</button></p>
+      <input id="pdf-input" type="file" accept="application/pdf,.pdf" hidden>
+    </details>
     <details class="tip">
       <summary>Using it on a phone or tablet</summary>
       <p>Add the app to your home screen so it opens full screen and your stored music is kept. On iPhone or iPad, tap Share, then <strong>Add to Home Screen</strong>. On Android, use the <strong>Install app</strong> button when it appears, or open the browser menu (⋮) and tap <strong>Add to Home screen</strong>, then <strong>Install</strong>.</p>

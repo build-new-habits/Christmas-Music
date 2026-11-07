@@ -6,9 +6,11 @@ An offline music viewer for **New Christmas Praise** (Solo & 1st Cornet B♭). I
 
 ## How it works
 
-- **The book is not in this repository.** The book is © 1994 Salvationist Publishing & Supplies Ltd and Egon Publishers Ltd. On first use, choose your own PDF copy. The app cuts out all 115 tunes in your browser and stores them only on that device (IndexedDB). Nothing is uploaded.
-- **The repository holds only the index** (`tunes.js`): numbers, titles, book pages, tempo markings, time signatures, and the crop position of each tune on the page.
-- **Offline:** a service worker caches the app. Once your PDF has been imported, the app works without the internet. On iPhone and iPad, add it to the Home Screen so Safari keeps the stored music.
+- **The music is locked.** The book is © 1994 Salvationist Publishing & Supplies Ltd and Egon Publishers Ltd. The 115 cut-out tunes are in `music.enc`, encrypted with AES-256-GCM. The key comes from a password through PBKDF2-SHA256 with 600,000 rounds. The password is not stored anywhere in this repository or the app.
+- **Unlocking a device:** the first time on each device, enter the password. The app downloads `music.enc` (about 8 MB) and decrypts it in the browser. It stores the tunes only on that device (IndexedDB), so the password isn't asked for again. Nothing is uploaded.
+- **Using your own PDF instead:** the start screen can also cut the tunes from your own copy of the PDF, on the device.
+- **The tune index** (`tunes.js`) holds numbers, titles, book pages, tempo markings, time signatures and crop positions.
+- **Offline:** a service worker caches the app. Once the music is unlocked, the app works without the internet. On iPhone and iPad, add it to the Home Screen so Safari keeps the stored music.
 
 ## Using it
 
@@ -25,4 +27,4 @@ The app is built to WCAG 2.2 AA. It uses real buttons and labels, works fully fr
 
 ## Files
 
-`index.html`, `styles.css`, `app.js`: the app · `tunes.js`: tune index · `sw.js`: offline cache · `vendor/pdfjs`: [PDF.js](https://mozilla.github.io/pdf.js/) 4.10.38 (Apache-2.0) · `fonts`: Atkinson Hyperlegible (SIL OFL).
+`index.html`, `styles.css`, `app.js`: the app · `tunes.js`: tune index · `music.enc`: locked music · `sw.js`: offline cache · `vendor/pdfjs`: [PDF.js](https://mozilla.github.io/pdf.js/) 4.10.38 (Apache-2.0) · `fonts`: Atkinson Hyperlegible (SIL OFL).

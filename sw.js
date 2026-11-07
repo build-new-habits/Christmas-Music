@@ -1,5 +1,5 @@
 // Offline cache for the app shell. The music itself lives in IndexedDB on the device.
-const CACHE = 'christmas-tunes-v2';
+const CACHE = 'christmas-tunes-v3';
 const SHELL = [
   './', './index.html', './styles.css', './app.js', './tunes.js', './manifest.webmanifest',
   './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',
@@ -14,7 +14,9 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('fetch', (e) => {
   const req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (url.pathname.endsWith('/music.enc')) return;   // large one-off download; music is kept in IndexedDB once unlocked
   // Serve from cache straight away, refresh it in the background when online.
   e.respondWith(caches.open(CACHE).then(async (cache) => {
     const hit = await cache.match(req, { ignoreSearch: true });

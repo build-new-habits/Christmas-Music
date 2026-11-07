@@ -172,6 +172,53 @@ async function importPdf(file, report) {
   try { await navigator.storage?.persist?.(); } catch { /* not supported */ }
 }
 
+/* ---------- password unlock ---------- */
+// music.enc = "CTB1" | iterations (u32 LE) | salt (16) | iv (12) | AES-256-GCM ciphertext.
+// The key is derived from the password on this device; the password is never stored or sent.
+async function fetchBundle(onProgress) {
+  const res = await fetch('./music.enc', { cache: 'no-store' });
+  if (!res.ok) throw new Error('fetch');
+  const total = Number(res.headers.get('content-length')) || 8241182;
+  if (!res.body || !res.body.getReader) return new Uint8Array(await res.arrayBuffer());
+  const reader = res.body.getReader(); const chunks = []; let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value); got += value.length; onProgress(Math.min(1, got / total));
+  }
+  const buf = new Uint8Array(got); let o = 0;
+  for (const c of chunks) { buf.set(c, o); o += c.length; }
+  return buf;
+}
+
+async function unlockMusic(password, report) {
+  const buf = await fetchBundle((f) => report('download', f));
+  if (String.fromCharCode(...buf.subarray(0, 4)) !== 'CTB1') throw new Error('format');
+  const iter = new DataView(buf.buffer, buf.byteOffset + 4, 4).getUint32(0, true);
+  const salt = buf.subarray(8, 24), iv = buf.subarray(24, 36), ct = buf.subarray(36);
+  report('key', 0);
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']);
+  const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+  let plain;
+  try { plain = new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv, additionalData: new TextEncoder().encode('CTB1') }, key, ct)); }
+  catch { const e = new Error('That password isn’t right. Check it and try again.'); e.badPassword = true; throw e; }
+  const len = new DataView(plain.buffer, plain.byteOffset, 4).getUint32(0, true);
+  const index = JSON.parse(new TextDecoder().decode(plain.subarray(4, 4 + len)));
+  const base0 = 4 + len;
+  await idb('scores', 'readwrite', (s) => s.clear());
+  let done = 0;
+  await idb('scores', 'readwrite', (s) => {
+    for (const t of index.tunes) {
+      const blob = new Blob([plain.subarray(base0 + t.off, base0 + t.off + t.len)], { type: 'image/png' });
+      s.put({ blob, w: t.w, h: t.h }, t.n);
+      done++;
+    }
+  });
+  if (done !== TUNES.length) throw new Error('count');
+  await idb('meta', 'readwrite', (s) => s.put({ at: Date.now(), count: done, name: 'Password unlock', v: 2 }, 'import'));
+  try { await navigator.storage?.persist?.(); } catch { /* not supported */ }
+}
+
 async function runImport(file, statusEl, showProgress) {
   if (!file) return false;
   statusEl.classList.remove('error');
@@ -367,10 +414,48 @@ async function enterApp() {
 function enterSetup() {
   stopLight();
   el.app.hidden = true; el.setup.hidden = false;
-  el.choose.focus();
+  $('pw').focus();
 }
 
 el.choose.addEventListener('click', () => el.input.click());
+
+const pw = $('pw'), pwToggle = $('pw-toggle'), unlockBtn = $('unlock-btn');
+pwToggle.addEventListener('click', () => {
+  const show = pw.type === 'password';
+  pw.type = show ? 'text' : 'password';
+  pwToggle.setAttribute('aria-pressed', String(show));
+  pwToggle.textContent = show ? 'Hide' : 'Show';
+});
+$('unlock-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const st = el.setupStatus;
+  st.classList.remove('error');
+  if (!pw.value) { st.classList.add('error'); st.textContent = 'Enter the password to unlock the music.'; pw.setAttribute('aria-invalid', 'true'); pw.focus(); return; }
+  pw.removeAttribute('aria-invalid');
+  unlockBtn.disabled = el.choose.disabled = true;
+  el.progWrap.hidden = false; el.prog.max = 100; el.prog.value = 0;
+  el.progLabel.textContent = 'Downloading locked music';
+  st.textContent = 'Downloading locked music…';
+  try {
+    await unlockMusic(pw.value, (stage, f) => {
+      if (stage === 'download') el.prog.value = Math.round(f * 90);
+      else { el.prog.value = 95; el.progLabel.textContent = 'Unlocking'; st.textContent = 'Unlocking…'; }
+    });
+    el.prog.value = 100;
+    st.textContent = `All ${TUNES.length} tunes are unlocked and stored on this device.`;
+    pw.value = '';
+    await enterApp(); el.q.focus();
+  } catch (err) {
+    console.error(err);
+    st.classList.add('error');
+    if (err.badPassword) { st.textContent = err.message; pw.setAttribute('aria-invalid', 'true'); pw.select(); pw.focus(); }
+    else st.textContent = navigator.onLine === false ? 'You need to be online the first time, to download the locked music. Connect and try again.' : 'Sorry, the music couldn’t be unlocked. Try again in a moment.';
+  } finally {
+    unlockBtn.disabled = el.choose.disabled = false;
+    el.progWrap.hidden = true; el.prog.max = TUNES.length;
+    el.progLabel.textContent = 'Preparing tunes';
+  }
+});
 el.input.addEventListener('change', async () => {
   const f = el.input.files[0]; el.input.value = '';
   el.choose.disabled = true;
@@ -467,7 +552,7 @@ async function boot() {
   const meta = await getMeta();
   if (meta && meta.count === TUNES.length && meta.v === 2) await enterApp();
   else {
-    if (meta) el.setupStatus.textContent = 'The app has been updated. Please choose your PDF again to rebuild the music.';
+    if (meta) el.setupStatus.textContent = 'The app has been updated. Please unlock the music again.';
     enterSetup();
   }
 }

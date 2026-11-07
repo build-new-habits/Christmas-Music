@@ -74,6 +74,13 @@ p { margin: 0; }
 .btn-outline-light { background: transparent; color: var(--on-strip); border-color: var(--field-border); }
 .btn-outline-light:hover { background: var(--strip-hi); }
 .foot-actions { display: flex; gap: 12px; }
+.unlock { display: flex; flex-direction: column; gap: 8px; }
+.unlock label { font-weight: 700; }
+.pw-row { display: flex; gap: 8px; }
+.search.pw { padding-left: 12px; flex: 1; min-width: 0; }
+.search.pw[aria-invalid="true"] { border-color: #FFB4A0; }
+.pw-toggle { padding: 0 14px; flex-shrink: 0; }
+.tip-action { margin-top: 10px; }
 .progress-wrap { display: flex; flex-direction: column; gap: 6px; }
 .progress-wrap progress { width: 100%; height: 14px; accent-color: var(--gold); }
 .setup-status { min-height: 1.4em; font-weight: 700; }
